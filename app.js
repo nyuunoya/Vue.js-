@@ -108,7 +108,7 @@ new Vue({
         const orderDetails = this.orderDetail.filter(detail => detail.orderId === orderId);
     
         // 新しいウィンドウを開く
-        const orderDetailsWindow = window.open('', '_blank', 'width=1000,height=400');
+        const orderDetailsWindow = window.open('', '_blank', 'width=1050,height=400');
         // CSSファイルを読み込む
         const link = orderDetailsWindow.document.createElement('link');
         link.rel = 'stylesheet';
