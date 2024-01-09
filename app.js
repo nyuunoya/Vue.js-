@@ -1,71 +1,152 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>発注システム</title>
-</head>
-<body>
-  <div id="app">
-    <h2>商品一覧</h2>
-    発注者名
-    <input type="text" v-model="account">
-    <table>
-     <tr>
-       <th style="width: 180px;">商品コード</th>
-       <th style="width: 60px;">分類</th>
-       <th>商品名</th>
-       <th>価格</th>
-       <th>発注数</th>
-       <th style="width: 180px;">発注金額</th>
-     </tr>
-     <tr v-for="(product, index) in productList" :key="product.id">
-       <td>{{ product.code }}</td>
-       <td>{{ product.category }}</td>
-       <td>{{ product.name }}</td>
-       <td style="text-align: right;">￥{{ product.price.toLocaleString() }}</td>
-       <td><input type="number" v-model="product.orderQuantity" @input="calculateOrderAmount(product, index)"></td>
-       <td style="text-align: right;">￥{{ product.orderAmount.toLocaleString() }}</td>
-     </tr>
-   </table>
-   <div style="font-size: 24px;text-align: right;">
-     小計：￥{{subtotal.toLocaleString()}}<br>
-     消費税：￥{{tax.toLocaleString()}}<br>
-     合計：￥{{(subtotal+tax).toLocaleString()}}
-   </div>
-   <p>
+// app.js
 
-   </p>
-   <div style="text-align: center;">
-    <button type="submit" style="font-size: 24px; padding: 10px 20px;" @click="placeOrder" >発注する</button>
-   </div>
-   <div>
-    <h2>発注履歴</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>発注番号</th>
-          <th>発注日時</th>
-          <th>発注者</th>
-          <th>明細</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(order, index) in orderHistory" :key="index">
-          <td>{{ order.id }}</td>
-          <td>{{ order.timestamp }}</td>
-          <td>{{ order.account }}</td>
-          <td><button @click="openOrderDetailsWindow(order.id)">明細を見る</button></td>
-        </tr>
-      </tbody>
-    </table>
-   </div>
-  </div>
+// CSSファイルを読み込む
+const link = document.createElement('link');
+link.rel = 'stylesheet';
+link.href = 'styles.css'; //暫定的に同階層に配置
+document.head.appendChild(link);
 
-  <!-- Vue.js CDNを使ってVueを読み込み -->
-  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+new Vue({
+    el: '#app',
 
-  <!-- Vueインスタンスの作成 -->
-  <script src="app.js"></script>
-</body>
-</html>
+    data: {
+      account: '田中',
+      //商品のリスト  
+      productList: [
+          { id: 1,code: '1234567890123456', category: '食品', name: 'コーラ', price: 150,  orderQuantity: 0 , orderAmount: 0 ,abnormalValue: 99},
+          { id: 2,code: '2345678901234567', category: '食品', name: 'ポテトチップス', price: 450,  orderQuantity: 0 , orderAmount: 0 ,abnormalValue: 99},
+          { id: 3,code: '3456789012345678', category: '家電', name: 'パソコン', price: 200000,  orderQuantity: 0 , orderAmount: 0 ,abnormalValue: 5},
+      ],
+      
+      //合計
+      totalAmount: 0,
+      //消費税率
+      taxRate: {
+        food: 0.08, // 食料品の消費税率
+        other: 0.1   // その他の消費税率
+      },
+      //注文履歴
+      orderHistory: [],
+      //注文明細
+      orderDetail: [],
+      orderIdCounter:0,
+    },
+
+    computed: {
+      foodSubtotal() {
+        return this.productList.filter(item => item.category === '食品').reduce((total, product) => total + (product.price * product.orderQuantity), 0);
+      },
+
+      otherSubtotal(){
+        return this.productList.filter(item => item.category !== '食品').reduce((total, product) => total + (product.price * product.orderQuantity), 0);
+      },
+      subtotal(){
+        return this.foodSubtotal+this.otherSubtotal
+      },
+
+      tax(){
+        return this.foodSubtotal*this.taxRate.food+this.otherSubtotal*this.taxRate.other
+      },
+
+    },
+    methods: {
+      calculateOrderAmount(product, index) {
+        //発注数の異常値検知
+        if (product.orderQuantity < 0) {
+          product.orderQuantity = 0;
+        }
+        if (product.orderQuantity > product.abnormalValue) {
+          product.orderQuantity = product.abnormalValue;
+        }
+
+        this.productList[index].orderAmount = product.price * product.orderQuantity;
+      },
+
+      placeOrder() {
+        // 合計発注金額が0の場合は警告メッセージを表示して処理を中断
+        if (this.subtotal === 0) {
+          window.alert('合計金額が￥0です。いずれかの商品を発注してください。');
+          return;
+        }
+        // 最終確認
+        if (window.confirm('本当に発注しますか？')) {
+          this.orderIdCounter++;
+          // 発注データを発注履歴に追加
+          this.orderHistory.unshift({
+            id: this.orderIdCounter, // 一意のIDを割り振り
+            timestamp: new Date().toLocaleString(),
+            account: this.account,
+          });
+          // 発注データを発注明細に追加
+          const orderDetails = this.productList
+          .filter(product => product.orderQuantity > 0)
+          .map(product => ({
+            orderId: this.orderIdCounter,
+            code: product.code,
+            productName: product.name,
+            quantity: product.orderQuantity,
+            amount: product.orderAmount,
+          }));
+    
+          this.orderDetail.unshift(...orderDetails);
+          window.alert("発注しました。");
+        } 
+        else {
+          // キャンセルされた場合の処理
+          window.alert('発注をキャンセルしました');
+        }
+      },
+
+      openOrderDetailsWindow(orderId) {
+        // orderIdに対応するorderDetailsを取得
+        const orderDetails = this.orderDetail.filter(detail => detail.orderId === orderId);
+    
+        // 新しいウィンドウを開く
+        const orderDetailsWindow = window.open('', '_blank', 'width=1050,height=400');
+
+        // 新しいウィンドウに閉じるボタンを追加
+        const closeButton = orderDetailsWindow.document.createElement('button');
+        closeButton.textContent = '閉じる';
+        closeButton.addEventListener('click', () => orderDetailsWindow.close());
+        orderDetailsWindow.document.body.appendChild(closeButton);
+
+        // CSSファイルを読み込む
+        const link = orderDetailsWindow.document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'styles.css'; //暫定的に同階層に配置
+        orderDetailsWindow.document.head.appendChild(link);
+        
+        // orderDetailsを表示するためのHTMLを構築
+        const orderDetailsHtml = `
+        <h2>注文明細</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>商品コード</th>
+              <th>商品名</th>
+              <th>数量</th>
+              <th>金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${orderDetails.map(detail => `
+              <tr>
+                <td>${detail.code}</td>
+                <td>${detail.productName}</td>
+                <td>${detail.quantity}</td>
+                <td>￥${detail.amount.toLocaleString()}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p></p>
+        <div style="text-align: center;">
+        <button style="font-size: 24px; padding: 10px 20px;" onclick="window.close()">閉じる</button>
+        </div>
+      `;
+    
+        // 新しいウィンドウにHTMLを挿入
+        orderDetailsWindow.document.body.innerHTML = orderDetailsHtml;
+      }
+    }
+  });
